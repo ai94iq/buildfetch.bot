@@ -303,6 +303,7 @@ async function handleBuildDetails(query, variant, codename) {
     }
 }
 
+// Modify fetchDevicesAndMaintainers to include support groups
 async function fetchDevicesAndMaintainers() {
     // Check cache first
     const now = Date.now();
@@ -326,6 +327,8 @@ async function fetchDevicesAndMaintainers() {
         const devices = {};
         // Create maintainers map
         const maintainersMap = {};
+        // Create support groups map
+        const supportGroups = {};
 
         // Iterate through the JSON data
         for (const [codename, deviceInfo] of Object.entries(devicesData)) {
@@ -340,8 +343,13 @@ async function fetchDevicesAndMaintainers() {
                 maintainersMap[deviceInfo.maintainer].push(deviceInfo.device_name);
             }
             
-            // Debug: Print codename and device name
-            console.log(`${codename} | ${deviceInfo.device_name}`);
+            // Add to support groups map
+            if (deviceInfo.support_group) {
+                supportGroups[codename.toLowerCase()] = deviceInfo.support_group;
+            }
+            
+            // Debug: Print codename and device name (consider removing in production)
+            // console.log(`${codename} | ${deviceInfo.device_name}`);
         }
 
         // Update cache
@@ -349,7 +357,7 @@ async function fetchDevicesAndMaintainers() {
         maintainersCache = maintainersMap;
         devicesCacheTime = now;
         
-        return [devices, maintainersMap];
+        return [devices, maintainersMap, supportGroups];
     } catch (error) {
         console.error('Fetch error:', error);
         // Return empty objects if fetch fails but don't update cache
@@ -358,41 +366,13 @@ async function fetchDevicesAndMaintainers() {
 }
 
 function getMaintainerForDevice(maintainers, codename, devices) {
-    const deviceName = devices[codename];
-    if (!deviceName) return null;
+    // Check if the device exists
+    if (!devices[codename]) return null;
     
-    // Try to find the maintainer by matching the device name or codename
+    // Direct lookup from maintainers map
     for (const [maintainer, devicesList] of Object.entries(maintainers)) {
-        for (const device of devicesList) {
-            // Check if device name matches exactly
-            if (device.toLowerCase() === deviceName.toLowerCase()) {
-                return maintainer;
-            }
-            
-            // Check if device name contains the device name
-            if (device.toLowerCase().includes(deviceName.toLowerCase()) || 
-                deviceName.toLowerCase().includes(device.toLowerCase())) {
-                return maintainer;
-            }
-            
-            // Check if the device entry has this specific codename
-            if (device.toLowerCase().includes(codename.toLowerCase())) {
-                return maintainer;
-            }
-        }
-    }
-    
-    // Try more aggressive matching - check if any part of the device name matches
-    // This is useful for devices like "POCO F6 PRO" where maintainer might be listed as "POCO F6 PRO"
-    // or just "F6 PRO" or even just "F6"
-    const deviceParts = deviceName.toLowerCase().split(' ');
-    for (const [maintainer, devicesList] of Object.entries(maintainers)) {
-        for (const device of devicesList) {
-            for (const part of deviceParts) {
-                if (part.length > 1 && device.toLowerCase().includes(part)) {
-                    return maintainer;
-                }
-            }
+        if (devicesList.includes(devices[codename])) {
+            return maintainer;
         }
     }
     
