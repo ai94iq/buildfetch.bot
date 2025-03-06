@@ -1,6 +1,7 @@
 const TELEGRAM_TOKEN = 'mreow';
 const API_BASE = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
-const DEVICES_URL = 'https://raw.githubusercontent.com/AxionAOSP/official_devices/main/README.md';
+// Update the DEVICES_URL to point to the JSON file
+const DEVICES_URL = 'https://raw.githubusercontent.com/rmuxnet/buildfetch.bot/refs/heads/main/info/devices.json';
 const BUILD_DATA_URL = 'https://raw.githubusercontent.com/AxionAOSP/official_devices/main/OTA';
 const CACHE_TTL = 60; // Cache for 1 min
 
@@ -318,37 +319,29 @@ async function fetchDevicesAndMaintainers() {
             throw new Error(`Failed to fetch devices: ${response.status} ${response.statusText}`);
         }
         
-        const content = await response.text();
+        // Parse JSON directly instead of text
+        const devicesData = await response.json();
 
-        // Parse devices
+        // Create devices map
         const devices = {};
-        const devicesSection = content.match(/# 📱 Supported Devices\s+\|[^\n]+\|[^\n]+\|((.*?)(?=\n\n|\n##))/s);
-        if (devicesSection) {
-            for (const row of devicesSection[1].trim().split('\n')) {
-                const match = row.match(/\|\s*\*\*(.*?)\*\*\s*\|\s*`(.*?)`\s*\|/);
-                if (match) {
-                    const deviceName = match[1].trim();
-                    const codename = match[2].trim().toLowerCase();
-                    devices[codename] = deviceName;
-                }
-            }
-        }
-
-        // Parse maintainers with device and codename associations
+        // Create maintainers map
         const maintainersMap = {};
-        const maintainersSection = content.match(/## 👤 Maintainers\s+((.*?)(?=\n##|$))/s);
-        if (maintainersSection) {
-            for (const line of maintainersSection[1].trim().split('\n')) {
-                const match = line.match(/-\s+\*\*\[(.*?)\].*?\*\*\s+\((.*?)\)/);
-                if (match) {
-                    const maintainerName = match[1].trim();
-                    const devicesText = match[2];
-                    
-                    // Extract each individual device from the comma-separated list
-                    const devicesList = devicesText.split(',').map(d => d.trim());
-                    maintainersMap[maintainerName] = devicesList;
+
+        // Iterate through the JSON data
+        for (const [codename, deviceInfo] of Object.entries(devicesData)) {
+            // Add to devices map
+            devices[codename.toLowerCase()] = deviceInfo.device_name;
+            
+            // Add to maintainers map
+            if (deviceInfo.maintainer) {
+                if (!maintainersMap[deviceInfo.maintainer]) {
+                    maintainersMap[deviceInfo.maintainer] = [];
                 }
+                maintainersMap[deviceInfo.maintainer].push(deviceInfo.device_name);
             }
+            
+            // Debug: Print codename and device name
+            console.log(`${codename} | ${deviceInfo.device_name}`);
         }
 
         // Update cache
